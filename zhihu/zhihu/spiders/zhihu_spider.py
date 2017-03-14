@@ -1,22 +1,27 @@
 # -*- coding: utf-8 -*-
 import scrapy
-from bs4 import BeautifulSoup
+#from bs4 import BeautifulSoup
 from zhihu.items import ZhihuItem
 from scrapy.http import Request, FormRequest
 from scrapy.selector import Selector
 from scrapy.spiders import CrawlSpider, Rule
-from scrapy.linkextractors.sgml import SgmlLinkExtractor
+from scrapy.linkextractors import LinkExtractor
 from scrapy.spider import BaseSpider
 import urlparse
 from scrapy import log
+from scrapy_splash import SplashRequest
+from scrapy_splash import SplashMiddleware
 
 class ZhihuSpider(BaseSpider):
     name = "zhihu_spider"
-    #allowed_domains = ["zhihu.com"]
-    start_urls = (
-        'https://www.zhihu.com/',
-    )
+    allowed_domains = ["zhihu.com"]
+    start_urls = [
+        'https://www.zhihu.com/topic/19562832/hot'
+    ]
 
+    rules = (
+        Rule(LinkExtractor(allow = ('/question/\d+')), process_request='request_question'),
+    )
 
 
     headers_zhihu = {
@@ -36,13 +41,14 @@ class ZhihuSpider(BaseSpider):
 
 
     def start_requests(self):
-        return [Request("https://www.zhihu.com/login/phone_num",meta={'cookiejar':1},headers = self.headers_zhihu,callback=self.post_login)]
+        return [SplashRequest("https://www.zhihu.com/login/phone_num",meta={'cookiejar':1},headers = self.headers_zhihu,callback=self.post_login)]
 
     def post_login(self,response):
-        print 'post_login'
+        self.log("preparing login...")
         xsrf = Selector(response).xpath('//input[@name="_xsrf"]/@value').extract()[0]  #不见【0】输出错误
 
-        print 'xsrf'+xsrf
+        self.log(xsrf)
+        #print 'xsrf'+xsrf
 
         return [FormRequest('https://www.zhihu.com/login/phone_num',
                 method='POST',
@@ -58,61 +64,67 @@ class ZhihuSpider(BaseSpider):
                     'phone_num':'18575607945',  #这里的参数值不能去掉''
                     'password':'82883613',
                      '_xsrf':xsrf
-
-
                 },
-
                 callback = self.after_login,
                 #dont_filter = True
 
         )]
-
+    #def after_login(self,response):
+    #    print 'after_login'
+    #    print response.body    # 返回msg
+    #    for url in self.start_urls:
+    #        print 'url...................'+url
+    #        yield self.make_requests_from_url(url,response)
     def after_login(self,response):
-        print 'after_login'
-        print response.body    # 返回msg
         for url in self.start_urls:
-            print 'url...................'+url
-            yield self.make_requests_from_url(url,response)
+            yield SplashRequest(url,self.parse,args={'wait':'0.5'},meta={'cookiejar':1},headers = self.headers_zhihu)
+
+    def request_question(self,request):
+        return SplashRequest(request.url,meta={'cookiejar':1},headers = self.headers_zhihu,callback=self.parse)
 
 
-    def make_requests_from_url(self, url,response):
-        return Request(url,dont_filter=True, meta = {
-                 'cookiejar':response.meta['cookiejar'],
-                  'dont_redirect': True,
-                  'handle_httpstatus_list': [301,302]
-            },
-                 #      callback=self.parse
-                       )
+    #def make_requests_from_url(self, url,response):
+    #    return Request(url,dont_filter=True, meta = {
+    #             'cookiejar':response.meta['cookiejar'],
+    #              'dont_redirect': True,
+    #              'handle_httpstatus_list': [301,302]
+    #        },
+    #             #      callback=self.parse
+    #                   )
 
 
     def parse(self, response):
-        items = []
+        #items = []
 
         problem = Selector(response)
 
         item = ZhihuItem()
-        name = problem.xpath('//span[@class="name"]/text()').extract()
-        print name
-        item['name'] = name
-        urls = problem.xpath('//a[@class="question_link"]/@href').extract()
 
-        print urls
+        title = problem.xpath('//h2/a[@class="question_link"]/text()').extract()
+        #print title
+        item['title'] = title
+        #item['title'] = [n.encode('utf-8') for n in title]
+
+        urls = problem.xpath('//h2/a[@class="question_link"]/@href').extract()
+        #print urls
         item['urls'] = urls
-        print 'response ............url '+response.url
-        item['url'] = response.url
-        print item['url']
+        yield item
+
+        #print 'response ............url '+response.url
+        #item['url'] = response.url
+        #print item['url']
 
 
-        items.append(item)
-        yield item                                                     #返回item
-        for url in urls:
-            print url
+        #items.append(item)
+        #yield item                                                     #返回item
+        #for url in urls:
+            #print url
 
-            yield scrapy.Request(urlparse.urljoin('https://www.zhihu.com', url),dont_filter=True,   #直接使用url会报错
-                 meta = {
-                 'cookiejar':response.meta['cookiejar'],               #设置cookiejar
-                  'dont_redirect': True,                               #防止重定向
-                  'handle_httpstatus_list': [301,302]
-            },
-                       callback=self.parse
-                       )
+            #yield scrapy.Request(urlparse.urljoin('https://www.zhihu.com', url),dont_filter=True,   #直接使用url会报错
+            #     meta = {
+            #     'cookiejar':response.meta['cookiejar'],               #设置cookiejar
+            #      'dont_redirect': True,                               #防止重定向
+            #      'handle_httpstatus_list': [301,302]
+            #},
+            #           callback=self.parse
+            #           )

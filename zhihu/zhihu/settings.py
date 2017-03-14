@@ -9,7 +9,7 @@
 #     http://scrapy.readthedocs.org/en/latest/topics/downloader-middleware.html
 #     http://scrapy.readthedocs.org/en/latest/topics/spider-middleware.html
 
-BOT_NAME = 'zhihu'
+BOT_NAME = 'zhihu_spider'
 
 SPIDER_MODULES = ['zhihu.spiders']
 NEWSPIDER_MODULE = 'zhihu.spiders'
@@ -24,11 +24,25 @@ COOKIES_ENABLED = True
 COOKIES_DEBUG = True
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
 #CONCURRENT_REQUESTS = 32
-
+SPLASH_URL = 'http://127.0.0.1:8050'
 # Configure a delay for requests for the same website (default: 0)
 # See http://scrapy.readthedocs.org/en/latest/topics/settings.html#download-delay
 # See also autothrottle settings and docs
 DOWNLOAD_DELAY = 3
+
+DOWNLOADER_MIDDLEWARES = {
+    'scrapy_splash.SplashCookiesMiddleware': 723,
+    'scrapy_splash.SplashMiddleware': 725,
+    'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware': 810,
+}
+
+SPIDER_MIDDLEWARES = {
+    'scrapy_splash.SplashDeduplicateArgsMiddleware': 100,
+}
+
+DUPEFILTER_CLASS = 'scrapy_splash.SplashAwareDupeFilter'
+
+HTTPCACHE_STORAGE = 'scrapy_splash.SplashAwareFSCacheStorage'
 # The download delay setting will honor only one of:
 #CONCURRENT_REQUESTS_PER_DOMAIN = 16
 #CONCURRENT_REQUESTS_PER_IP = 16
@@ -56,6 +70,7 @@ DOWNLOAD_DELAY = 3
 #DOWNLOADER_MIDDLEWARES = {
 #    'zhihu.middlewares.MyCustomDownloaderMiddleware': 543,
 #}
+
 
 # Enable or disable extensions
 # See http://scrapy.readthedocs.org/en/latest/topics/extensions.html
