@@ -9,14 +9,14 @@ from scrapy.linkextractors import LinkExtractor
 from scrapy.spider import BaseSpider
 import urlparse
 from scrapy import log
-from scrapy_splash import SplashRequest
-from scrapy_splash import SplashMiddleware
+from PIL import Image
+from StringIO import StringIO
 
 class ZhihuSpider(BaseSpider):
     name = "zhihu_spider"
     allowed_domains = ["zhihu.com"]
     start_urls = [
-        'https://www.zhihu.com/topic/19562832/hot'
+        'https://www.zhihu.com'
     ]
 
     rules = (
@@ -25,50 +25,66 @@ class ZhihuSpider(BaseSpider):
 
 
     headers_zhihu = {
-           'Host':'www.zhihu.com ',
-           'User-Agent':'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:39.0) Gecko/20100101 Firefox/39.0',
-           'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-           'Accept-Language':'zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3',
-           'Accept-Encoding':'gzip,deflate,sdch',
-           'Referer':'https://www.zhihu.com ',
-           'If-None-Match':"FpeHbcRb4rpt_GuDL6-34nrLgGKd.gz",
-           'Cache-Control':'max-age=0',
-           'Connection':'keep-alive'
-          # 'cookie':cookie
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Encoding": "gzip,deflate",
+        "Accept-Language": "en-US,en;q=0.8,zh-TW;q=0.6,zh;q=0.4",
+        "Connection": "keep-alive",
+        "Content-Type":" application/x-www-form-urlencoded; charset=UTF-8",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.97 Safari/537.36",
+        "Referer": "http://www.zhihu.com"
+        # 'cookie':cookie
 
 
     }
 
 
     def start_requests(self):
-        return [SplashRequest("https://www.zhihu.com/login/phone_num",meta={'cookiejar':1},headers = self.headers_zhihu,callback=self.post_login)]
+        return [Request("https://www.zhihu.com/login/phone_num",headers = self.headers_zhihu,#meta={'cookiejar':1},#callback=self.post_login
+                        callback=self.init)]
 
-    def post_login(self,response):
-        self.log("preparing login...")
-        xsrf = Selector(response).xpath('//input[@name="_xsrf"]/@value').extract()[0]  #不见【0】输出错误
+    def init(self,response):
+        self.xsrf = Selector(response).xpath('//input[@name="_xsrf"]/@value').extract()[0]  #不见【0】输出错误
+        return Request('https://www.zhihu.com/captcha.gif?r=1490793697630&type=login', callback=self.login)
 
-        self.log(xsrf)
-        #print 'xsrf'+xsrf
+    def getcapid(self,response):
+        Image.open(StringIO(response.body)).show()
+        return raw_input('输入验证码：')
 
-        return [FormRequest('https://www.zhihu.com/login/phone_num',
-                method='POST',
-                meta = {
-                    'cookiejar': response.meta['cookiejar'],
-                    '_xsrf':xsrf
-
-                },
-
-                headers = self.headers_zhihu,
-
-                formdata = {
+    def login(self,response):
+        return FormRequest('https://www.zhihu.com/login/phone_num',
+        #meta={'cookiejar':response.meta['cookiejar']},
+        headers = self.headers_zhihu,
+        formdata = {
+                    '_xsrf':self.xsrf,
                     'phone_num':'18575607945',  #这里的参数值不能去掉''
                     'password':'82883613',
-                     '_xsrf':xsrf
+                    'remember_me':'true',
+                    'captcha':self.getcapid(response),
                 },
-                callback = self.after_login,
+        callback = self.after_login,
+        dont_filter = True)
+
+
+#    def post_login(self,response):
+#        self.log("preparing login...")
+#        xsrf = Selector(response).xpath('//input[@name="_xsrf"]/@value').extract()[0]  #不见【0】输出错误
+#
+#        self.log(xsrf)
+#        #print 'xsrf'+xsrf
+
+#        return [FormRequest('https://www.zhihu.com/login/phone_num',
+#                meta={'cookiejar':response.meta['cookiejar']},
+#                headers = self.headers_zhihu,
+#                formdata = {
+#                    '_xsrf':xsrf,
+#                    'phone_num':'18575607945',  #这里的参数值不能去掉''
+#                    'password':'82883613',
+#                    'remember_me':'true',
+#                },
+#                callback = self.after_login,
                 #dont_filter = True
 
-        )]
+#        )]
     #def after_login(self,response):
     #    print 'after_login'
     #    print response.body    # 返回msg
@@ -76,11 +92,14 @@ class ZhihuSpider(BaseSpider):
     #        print 'url...................'+url
     #        yield self.make_requests_from_url(url,response)
     def after_login(self,response):
+        print response.body
         for url in self.start_urls:
-            yield SplashRequest(url,self.parse,args={'wait':'0.5'},meta={'cookiejar':1},headers = self.headers_zhihu)
+            yield Request(url,headers = self.headers_zhihu,#meta={'cookiejar':1}
+                            )
 
     def request_question(self,request):
-        return SplashRequest(request.url,meta={'cookiejar':1},headers = self.headers_zhihu,callback=self.parse)
+        return Request(request.url,headers = self.headers_zhihu,callback=self.parse,#meta={'cookiejar':1}
+                         )
 
 
     #def make_requests_from_url(self, url,response):
@@ -95,7 +114,7 @@ class ZhihuSpider(BaseSpider):
 
     def parse(self, response):
         #items = []
-
+        print response.body
         problem = Selector(response)
 
         item = ZhihuItem()
