@@ -19,7 +19,7 @@ USER_AGENT = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, lik
 #USER_AGENT = 'zhihu (+http://www.yourdomain.com)'
 
 # Obey robots.txt rules
-ROBOTSTXT_OBEY = False
+ROBOTSTXT_OBEY = True
 COOKIES_ENABLED = True
 COOKIES_DEBUG = True
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
@@ -29,9 +29,9 @@ COOKIES_DEBUG = True
 # See also autothrottle settings and docs
 DOWNLOAD_DELAY = 3
 
-#DOWNLOADER_MIDDLEWARES = {
-#    'zhihu.JSMiddleware.PhantomJSMiddleware': 100
-#}
+DOWNLOADER_MIDDLEWARES = {
+    'zhihu.JSMiddleware.PhantomJSMiddleware': 100
+}
 # The download delay setting will honor only one of:
 #CONCURRENT_REQUESTS_PER_DOMAIN = 16
 #CONCURRENT_REQUESTS_PER_IP = 16

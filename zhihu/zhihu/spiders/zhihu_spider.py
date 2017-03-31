@@ -2,7 +2,7 @@
 import scrapy
 #from bs4 import BeautifulSoup
 from zhihu.items import ZhihuItem
-from scrapy.http import Request, FormRequest
+from scrapy.http import Request, FormRequest, HtmlResponse
 from scrapy.selector import Selector
 from scrapy.spiders import CrawlSpider, Rule
 from scrapy.linkextractors import LinkExtractor
@@ -11,16 +11,18 @@ import urlparse
 from scrapy import log
 from PIL import Image
 from StringIO import StringIO
+import json
+
 
 class ZhihuSpider(BaseSpider):
     name = "zhihu_spider"
     allowed_domains = ["zhihu.com"]
     start_urls = [
-        'https://www.zhihu.com'
+        'https://www.zhihu.com/#signin'
     ]
 
     rules = (
-        Rule(LinkExtractor(allow = ('/question/\d+')), process_request='request_question'),
+        Rule(LinkExtractor(allow = ('/question/\d+')), callback='parse_qusetion'),
     )
 
 
@@ -39,7 +41,7 @@ class ZhihuSpider(BaseSpider):
 
 
     def start_requests(self):
-        return [Request("https://www.zhihu.com/login/phone_num",headers = self.headers_zhihu,#meta={'cookiejar':1},#callback=self.post_login
+        return [Request("https://www.zhihu.com/login/phone_num",headers = self.headers_zhihu,meta={'cookiejar':1},#callback=self.post_login
                         callback=self.init)]
 
     def init(self,response):
@@ -51,18 +53,19 @@ class ZhihuSpider(BaseSpider):
         return raw_input('输入验证码：')
 
     def login(self,response):
+
         return FormRequest('https://www.zhihu.com/login/phone_num',
-        #meta={'cookiejar':response.meta['cookiejar']},
-        headers = self.headers_zhihu,
-        formdata = {
-                    '_xsrf':self.xsrf,
-                    'phone_num':'18575607945',  #这里的参数值不能去掉''
-                    'password':'82883613',
-                    'remember_me':'true',
-                    'captcha':self.getcapid(response),
-                },
-        callback = self.after_login,
-        dont_filter = True)
+                           headers = self.headers_zhihu,
+                           formdata = {
+                               '_xsrf':self.xsrf,
+                               'phone_num':'18575607945',  #这里的参数值不能去掉''
+                               'password':'82883613',
+                               'remember_me':'true',
+                               'captcha':self.getcapid(response)
+                           },
+                           callback = self.after_login,
+                           #dont_filter = True
+                           )
 
 
 #    def post_login(self,response):
@@ -92,14 +95,15 @@ class ZhihuSpider(BaseSpider):
     #        print 'url...................'+url
     #        yield self.make_requests_from_url(url,response)
     def after_login(self,response):
-        print response.body
+        #print response.body
         for url in self.start_urls:
-            yield Request(url,headers = self.headers_zhihu,#meta={'cookiejar':1}
+        #if json.loads(response.body)['r'] == 0:
+            yield Request(url,headers = self.headers_zhihu,callback=self.parse_question,dont_filter = True
                             )
 
-    def request_question(self,request):
-        return Request(request.url,headers = self.headers_zhihu,callback=self.parse,#meta={'cookiejar':1}
-                         )
+    #def request_question(self,request):
+        #return Request(request.url,meta={'cookiejar':1},headers = self.headers_zhihu,callback=self.parse_question,
+                         #)
 
 
     #def make_requests_from_url(self, url,response):
@@ -112,8 +116,9 @@ class ZhihuSpider(BaseSpider):
     #                   )
 
 
-    def parse(self, response):
+    def parse_question(self, response):
         #items = []
+        print 'xsrf'+self.xsrf
         print response.body
         problem = Selector(response)
 
@@ -125,9 +130,13 @@ class ZhihuSpider(BaseSpider):
         #item['title'] = [n.encode('utf-8') for n in title]
 
         urls = problem.xpath('//h2/a[@class="question_link"]/@href').extract()
-        #print urls
+        print urls
         item['urls'] = urls
         yield item
+
+
+        request = Request(url='https://www.zhihu.com/', dont_filter=True)
+        request.meta['PhantomJS'] = True
 
         #print 'response ............url '+response.url
         #item['url'] = response.url
@@ -139,11 +148,11 @@ class ZhihuSpider(BaseSpider):
         #for url in urls:
             #print url
 
-            #yield scrapy.Request(urlparse.urljoin('https://www.zhihu.com', url),dont_filter=True,   #直接使用url会报错
-            #     meta = {
-            #     'cookiejar':response.meta['cookiejar'],               #设置cookiejar
-            #      'dont_redirect': True,                               #防止重定向
-            #      'handle_httpstatus_list': [301,302]
+        #yield scrapy.Request(urlparse.urljoin('https://www.zhihu.com', url),dont_filter=True,   #直接使用url会报错
+                 #meta = {
+                 #'cookiejar':response.meta['cookiejar'],               #设置cookiejar
+                  #'dont_redirect': True,                               #防止重定向
+                  #'handle_httpstatus_list': [301,302]
             #},
-            #           callback=self.parse
-            #           )
+                       #callback=self.parse
+                       #)
